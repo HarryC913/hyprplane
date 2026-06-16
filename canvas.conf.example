@@ -1,0 +1,20 @@
+# canvasinfinite — example config (additive / opt-in).
+#
+# 1. Build the plugin (see README), then point this at the built .so.
+# 2. Source this file at the END of your ~/.config/hypr/hyprland.conf:
+#       source = ~/.config/hypr/canvas.conf
+# 3. Reload Hyprland (or relog).
+#
+# To disable everything: remove the `source =` line above and relog.
+
+# Load the plugin at startup. Adjust the path to where you built it.
+plugin = /home/YOURUSER/canvasinfinite/build/canvasinfinite.so
+
+# Toggle canvas mode on the focused workspace(s) — affects all monitors at once.
+bind = SUPER, grave, canvas:toggle
+
+# Optional keyboard panning while in canvas mode (mouse drag also pans).
+bind = SUPER CTRL, K, canvas:pan, 0 -200
+bind = SUPER CTRL, J, canvas:pan, 0 200
+
+# In canvas mode you can also pan by holding MIDDLE-mouse (or CTRL + left) and dragging.

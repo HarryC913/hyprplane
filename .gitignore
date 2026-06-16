@@ -1,0 +1,9 @@
+# build artifacts
+/build/
+*.so
+*.o
+
+# editor / OS
+.cache/
+compile_commands.json
+.DS_Store
