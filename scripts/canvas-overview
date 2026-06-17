@@ -21,8 +21,11 @@ import subprocess
 import sys
 
 STATE = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "canvasinfinite-overview.state")
-MARGIN = 0.92      # leave a small border around the fitted windows
-MIN_SCALE = 0.1    # never shrink past this
+MARGIN = 0.92          # leave a small border around the fitted windows
+MIN_SCALE = 0.1        # never shrink past this
+STEP_FRACTION = 0.5    # always zoom out to AT MOST this fraction of native scale, so a
+                       # press is always visibly a step back even when windows fill the
+                       # screen; spread-out windows zoom out further to fit.
 
 
 def hjson(*args):
@@ -78,11 +81,13 @@ def main():
         bh = max(1.0, maxy - miny)
 
         phys_w, phys_h = logical_dims(m)
-        # logical view size = phys/scale; to fit the bbox: scale <= phys/bbox
+        # fit-to-content: scale so the window bbox fits the screen, with a margin.
         fit = min(phys_w / bw, phys_h / bh) * MARGIN
+        # always step back to a visible degree; zoom out FURTHER if the spread is wider.
+        fit = min(fit, m["scale"] * STEP_FRACTION)
         fit = max(MIN_SCALE, min(fit, m["scale"]))  # never magnify past native
         if fit >= m["scale"]:
-            continue  # everything already fits
+            continue  # native already at/below target — nothing to do
 
         saved.append(monitor_line(m, m["scale"]))   # remember native line to restore
         set_monitor(monitor_line(m, round(fit, 4)))

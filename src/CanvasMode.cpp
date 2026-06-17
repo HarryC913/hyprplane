@@ -32,6 +32,14 @@ void CCanvasMode::enter(const PHLWORKSPACE& ws) {
     if (!ws || isCanvas(ws))
         return;
 
+    // Capture the native (pre-overview) monitor scale so the DPI-block hook can clamp the
+    // client-facing fractional scale up to it while canvas is on. Reset when starting fresh
+    // (no canvas ws yet), then take the max across every monitor we turn canvas on for.
+    if (m_canvasWorkspaces.empty())
+        m_appScale = 1.0F;
+    if (const auto MON = ws->m_monitor.lock())
+        m_appScale = std::max(m_appScale, MON->m_scale);
+
     m_canvasWorkspaces.insert(ws->m_id);
 
     auto& saved = m_saved[ws->m_id];

@@ -1,14 +1,11 @@
 # canvasinfinite — roadmap / TODO
 
 Done so far: toggle, grab-pan (1:1), multi-monitor, layout persistence across toggles,
-full-display overview (companion script), public repo.
+full-display overview (companion script, always steps back to a visible zoom), DPI-block
+(apps keep native resolution during overview — no reflow), public repo.
 
 ## Features / ideas
 
-- [ ] **Block per-app DPI rescaling during overview.** When overview lowers monitor scale,
-  clients (Steam, GTK/Qt) get the new `wl_output` scale and re-render their UI at that DPI
-  (ugly reflow / wrong sizes). Pin or suppress the client-facing scale during overview so
-  apps keep native resolution and the compositor just downscales the image. *(in progress)*
 - [ ] **Unified cross-display zoom-out.** Overview scales each monitor independently → feels
   disjointed. Make it read as one continuous canvas across displays (monitor scale is
   per-output, so this likely needs a different mechanism — e.g. a single large virtual output).

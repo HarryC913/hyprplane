@@ -12,11 +12,30 @@
 #include <hyprland/src/managers/input/InputManager.hpp>
 #include <hyprland/src/desktop/view/Window.hpp>
 #include <hyprland/src/SharedDefs.hpp>
+#include <hyprland/src/plugins/HookSystem.hpp>
+#include <hyprland/src/protocols/FractionalScale.hpp>
 
 // Kept alive for the life of the plugin; resetting them unregisters the hooks.
 static CHyprSignalListener g_buttonListener;
 static CHyprSignalListener g_moveListener;
 static CHyprSignalListener g_openListener;
+
+// --- DPI-block ------------------------------------------------------------------
+// The overview lowers each monitor's scale so the desktop zooms out. Fractional-scale-
+// aware apps (Steam, GTK/Qt) react to the lowered scale by re-rendering their UI at that
+// DPI — an ugly reflow. CFractionalScaleProtocol::sendScale is exactly the call that tells
+// a client its scale. We hook it and, while canvas is on, clamp the reported scale UP to
+// the native scale, so apps keep rendering at native resolution and the compositor just
+// downscales the result. Outside canvas mode the hook is a pass-through (gated on anyActive).
+static CFunctionHook* g_sendScaleHook = nullptr;
+typedef void (*PsendScale)(CFractionalScaleProtocol*, SP<CWLSurfaceResource>, const float&);
+
+static void hkSendScale(CFractionalScaleProtocol* thisptr, SP<CWLSurfaceResource> surf, const float& scale) {
+    float s = scale;
+    if (g_canvas && g_canvas->anyActive() && s < g_canvas->appScale())
+        s = g_canvas->appScale();
+    (*(PsendScale)g_sendScaleHook->m_original)(thisptr, surf, s);
+}
 
 // Grab-to-pan state (middle-mouse or Ctrl+left drag).
 static bool     g_grabbing = false;
@@ -113,6 +132,16 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO pluginInit(HANDLE handle) {
             g_canvas->onWindowOpened(w);
     });
 
+    // --- DPI-block: hook the fractional-scale send so overview doesn't reflow apps -----
+    for (const auto& m : HyprlandAPI::findFunctionsByName(PHANDLE, "sendScale")) {
+        if (m.demangled.contains("CFractionalScaleProtocol::sendScale")) {
+            g_sendScaleHook = HyprlandAPI::createFunctionHook(PHANDLE, m.address, (void*)&hkSendScale);
+            break;
+        }
+    }
+    if (g_sendScaleHook)
+        g_sendScaleHook->hook();
+
     HyprlandAPI::addNotification(PHANDLE, "[canvasinfinite] loaded — toggle: SUPER+grave, middle/Ctrl-drag to pan",
                                  CHyprColor{0.2F, 1.0F, 0.4F, 1.0F}, 4000);
 
@@ -122,6 +151,8 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO pluginInit(HANDLE handle) {
 APICALL EXPORT void PLUGIN_EXIT() {
     if (g_canvas && g_canvas->anyActive())
         g_canvas->toggleAllMonitors(); // un-float / re-tile windows so unload leaves a clean layout
+    if (g_sendScaleHook)
+        g_sendScaleHook->unhook();
     g_buttonListener.reset();
     g_moveListener.reset();
     g_openListener.reset();

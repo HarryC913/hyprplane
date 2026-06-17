@@ -45,6 +45,11 @@ class CCanvasMode {
 
     bool anyActive() const { return !m_canvasWorkspaces.empty(); }
 
+    // Native (pre-overview) monitor scale captured when canvas turned on. The DPI-block
+    // hook clamps the client-facing fractional scale up to this during canvas mode, so the
+    // overview's lowered monitor scale doesn't make apps (Steam/GTK/Qt) reflow their UI.
+    float appScale() const { return m_appScale; }
+
   private:
     // Per-window snapshot captured on enter(), replayed on leave().
     struct SSavedWin {
@@ -66,6 +71,8 @@ class CCanvasMode {
     std::unordered_set<WORKSPACEID>                           m_canvasWorkspaces;
     std::unordered_map<WORKSPACEID, std::vector<SSavedWin>>   m_saved;     // tiled-restore data, erased on leave()
     std::unordered_map<WORKSPACEID, std::vector<SCanvasGeom>> m_canvasGeom; // remembered canvas layout, persists
+
+    float m_appScale = 1.0F; // native monitor scale captured when canvas turned on (for the DPI-block)
 };
 
 inline UP<CCanvasMode> g_canvas;
