@@ -29,7 +29,10 @@ static CHyprSignalListener g_openListener;
 static CHyprSignalListener g_renderListener;
 
 // Minimap fade level (0..1), eased toward 1 while grab-panning and back to 0 when idle.
-static float g_minimapAlpha = 0.0F;
+static float           g_minimapAlpha    = 0.0F;
+static constexpr float MINIMAP_FADE_RATE = 0.18F;  // per-frame easing toward target
+static constexpr float MINIMAP_FADE_FLOOR = 0.004F; // below this, treat as fully hidden
+static constexpr int   ACCENT_TTL_SECS   = 3;      // re-read the theme accent at most this often
 
 // System theme accent = first colour of the active-border gradient. Read via hyprctl
 // (the config-pointer route returns garbage for complex gradient values) and parse the
@@ -38,7 +41,7 @@ static CHyprColor themeAccent() {
     static CHyprColor cached(0.20, 0.60, 0.95, 1.0);
     static time_t     lastRead = 0;
     const time_t      now      = time(nullptr);
-    if (now - lastRead < 3)
+    if (now - lastRead < ACCENT_TTL_SECS)
         return cached;
     lastRead = now;
 
@@ -133,7 +136,7 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO pluginInit(HANDLE handle) {
     // Binds call e.g.  canvas:pan 0 -200 . Also used to verify panning headless.
     HyprlandAPI::addDispatcherV2(PHANDLE, "canvas:pan", [](std::string arg) -> SDispatchResult {
         if (!g_canvas->anyActive())
-            return {.success = false, .error = "canvas: not in canvas mode"};
+            return {.success = false, .error = "hyprplane: not in canvas mode"};
 
         const auto SP = arg.find(' ');
         if (SP == std::string::npos)
@@ -207,8 +210,8 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO pluginInit(HANDLE handle) {
             return;
         }
         // ease toward visible while grab-panning, toward hidden when idle
-        g_minimapAlpha += ((g_grabbing ? 1.0F : 0.0F) - g_minimapAlpha) * 0.18F;
-        if (g_minimapAlpha <= 0.004F) {
+        g_minimapAlpha += ((g_grabbing ? 1.0F : 0.0F) - g_minimapAlpha) * MINIMAP_FADE_RATE;
+        if (g_minimapAlpha <= MINIMAP_FADE_FLOOR) {
             g_minimapAlpha = 0.0F;
             return;
         }
@@ -251,5 +254,6 @@ APICALL EXPORT void PLUGIN_EXIT() {
     g_moveListener.reset();
     g_openListener.reset();
     g_renderListener.reset();
+    clearIconCache(); // release icon GL textures while the context is still up
     g_canvas.reset();
 }

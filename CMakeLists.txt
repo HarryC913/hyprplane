@@ -19,6 +19,7 @@ pkg_check_modules(DEPS REQUIRED IMPORTED_TARGET
 add_library(hyprplane SHARED
     src/main.cpp
     src/CanvasMode.cpp
+    src/Minimap.cpp
 )
 
 target_compile_options(hyprplane PRIVATE -fPIC -Wall -Wextra -Wno-unused-parameter)

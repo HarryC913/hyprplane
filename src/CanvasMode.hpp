@@ -32,9 +32,6 @@ class CCanvasMode {
     void enter(const PHLWORKSPACE& ws);
     void leave(const PHLWORKSPACE& ws);
 
-    // Pan the viewport camera by a canvas-space delta (animated).
-    void pan(const PHLWORKSPACE& ws, const Vector2D& delta);
-
     // Float a window that opened while its workspace is in canvas mode, so it joins
     // the canvas (pannable) instead of disrupting the layout as a lone tiled window.
     void onWindowOpened(const PHLWINDOW& w);
@@ -86,3 +83,7 @@ class CCanvasMode {
 };
 
 inline UP<CCanvasMode> g_canvas;
+
+// Release cached app-icon GL textures. Call from PLUGIN_EXIT while the GL context is still
+// live (defined in Minimap.cpp, alongside the icon cache it owns).
+void clearIconCache();
