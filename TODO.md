@@ -9,9 +9,12 @@ grab-pan minimap with app icon resolution, public repo.
 
 ## Features / ideas
 
-- [ ] **Smooth zoom animation.** Animate the DPI-matched ↔ overview transition. Hard: monitor
-  scale is an instant output reconfigure (not animatable); only path is a transient render
-  transform during the toggle (the renderModif route we shelved for being ugly).
+- [x] ~~**Smooth zoom animation.**~~ **Shelved — compositor-blocked.** Hyprland can't animate
+  monitor scale (instant output reconfigure). A render-transform tween can't substitute: it
+  only scales the composited framebuffer, so it can't reveal the off-screen windows the
+  overview exists to show, and pops when handing off to the real scale. The least-bad trick
+  (apply real scale, then animate a counter-magnify away) is undercut on multi-monitor by the
+  wallpaper-reanchor (forcerendererreload) flicker. Decision: keep the instant snap (crisp).
 
 ## Sharing / polish
 

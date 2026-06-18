@@ -1,6 +1,12 @@
-[plugin]
+[repository]
 name = "hyprplane"
-authors = ["hcopeland"]
-description = "Infinite pannable 2D canvas for Hyprland. Toggle it on, drag your windows around an infinite plane across every monitor, toggle off to snap back to tiling."
 
+[hyprplane]
+description = "Infinite pannable 2D canvas for Hyprland. Toggle it on, drag your windows around an infinite plane across every monitor, toggle off to snap back to tiling."
+authors = ["hcopeland"]
+version = "0.1.0"
 output = "build/hyprplane.so"
+build = [
+    "cmake --no-warn-unused-cli -DCMAKE_BUILD_TYPE:STRING=Release -S . -B build",
+    "cmake --build build --config Release -j`nproc 2>/dev/null || getconf _NPROCESSORS_CONF`",
+]
