@@ -42,6 +42,7 @@ static void registerConfig() {
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprplane:fade_speed", Hyprlang::FLOAT{0.18F});
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprplane:grab_button", Hyprlang::INT{2});
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprplane:jump_order", Hyprlang::INT{0});
+    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprplane:spawn_center", Hyprlang::INT{1});
 }
 
 // System theme accent = first colour of the active-border gradient. Read via hyprctl
@@ -174,6 +175,32 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO pluginInit(HANDLE handle) {
         }
         if (g_pKeybindManager && g_pKeybindManager->m_dispatchers.contains("workspace"))
             return g_pKeybindManager->m_dispatchers["workspace"](arg);
+        return {.success = true, .error = ""};
+    });
+
+    // --- gather: re-collect the focused monitor's canvas windows into the current view ----
+    HyprlandAPI::addDispatcherV2(PHANDLE, "canvas:gather", [](std::string) -> SDispatchResult {
+        if (!g_canvas || !g_canvas->anyActive())
+            return {.success = false, .error = "hyprplane: not in canvas mode"};
+        g_canvas->gather();
+        return {.success = true, .error = ""};
+    });
+
+    // --- named layouts: canvas:savelayout <name> / canvas:loadlayout <name> ---------------
+    HyprlandAPI::addDispatcherV2(PHANDLE, "canvas:savelayout", [](std::string arg) -> SDispatchResult {
+        if (!g_canvas || !g_canvas->anyActive())
+            return {.success = false, .error = "hyprplane: not in canvas mode"};
+        if (arg.empty())
+            return {.success = false, .error = "hyprplane: savelayout needs a name"};
+        g_canvas->saveLayout(arg);
+        return {.success = true, .error = ""};
+    });
+    HyprlandAPI::addDispatcherV2(PHANDLE, "canvas:loadlayout", [](std::string arg) -> SDispatchResult {
+        if (!g_canvas || !g_canvas->anyActive())
+            return {.success = false, .error = "hyprplane: not in canvas mode"};
+        if (arg.empty())
+            return {.success = false, .error = "hyprplane: loadlayout needs a name"};
+        g_canvas->loadLayout(arg);
         return {.success = true, .error = ""};
     });
 

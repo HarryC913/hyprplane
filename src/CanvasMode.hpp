@@ -6,6 +6,7 @@
 #include <hyprland/src/helpers/memory/Memory.hpp>
 #include <hyprland/src/helpers/Color.hpp>
 
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -55,6 +56,15 @@ class CCanvasMode {
     // Focus + centre the Nth canvas window (1-based, in orderedWindows() order) across all
     // canvas workspaces. Drives the SUPER+number window-switcher (via the canvas:jump dispatcher).
     void jumpToWindow(int n);
+
+    // Re-collect the focused monitor's canvas windows into a centred cascade in the current
+    // view (undo a scattered canvas). Drives the canvas:gather dispatcher.
+    void gather();
+
+    // Save / restore a named canvas layout to disk ($XDG_STATE_HOME/hyprplane/<name>.layout),
+    // keyed by window identity (class + title + Nth-occurrence) so it survives restarts.
+    void saveLayout(const std::string& name);
+    void loadLayout(const std::string& name);
 
     // Draw the grab-pan minimap on the given monitor (called from a render-stage listener):
     // a corner panel with every canvas window as a rect labelled by its SUPER+number, and

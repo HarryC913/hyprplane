@@ -9,8 +9,17 @@
 #include <hyprland/src/managers/KeybindManager.hpp>
 
 #include <algorithm>
+#include <cctype>
+#include <cstdlib>
+#include <filesystem>
 #include <format>
+#include <fstream>
+#include <sstream>
+#include <string>
+#include <unordered_map>
 #include <vector>
+
+namespace fs = std::filesystem;
 
 // Compare workspaces by ID — the cursor monitor's active workspace and a window's
 // m_workspace are the same logical ws but not always the same shared_ptr.
@@ -106,8 +115,18 @@ void CCanvasMode::onWindowOpened(const PHLWINDOW& w) {
     // geometry (its natural spot); next leave() records it into m_canvasGeom.
     if (!w || !w->m_workspace || !isCanvas(w->m_workspace) || w->m_isFloating)
         return;
-    if (const auto t = w->layoutTarget())
-        g_layoutManager->changeFloatingMode(t);
+    const auto t = w->layoutTarget();
+    if (!t)
+        return;
+    g_layoutManager->changeFloatingMode(t);
+
+    // Drop it in the centre of the current view (the monitor's middle in canvas coords)
+    // instead of its tiled spot, unless disabled.
+    if (cfg::spawnCenter())
+        if (const auto mon = w->m_monitor.lock()) {
+            const Vector2D size = w->m_realSize->goal();
+            g_layoutManager->setTargetGeom(CBox{mon->middle() - size / 2.0, size}, t);
+        }
 }
 
 void CCanvasMode::panAllActive(const Vector2D& delta) {
@@ -227,4 +246,126 @@ void CCanvasMode::jumpToWindow(int n) {
     g_pCompositor->warpCursorTo(mon->middle());
     if (g_pKeybindManager && g_pKeybindManager->m_dispatchers.contains("focuswindow"))
         g_pKeybindManager->m_dispatchers["focuswindow"](std::format("address:0x{:x}", (uintptr_t)w.get()));
+}
+
+// --- named layout persistence -----------------------------------------------------------
+static std::string layoutDir() {
+    if (const char* s = getenv("XDG_STATE_HOME"); s && *s)
+        return std::string(s) + "/hyprplane";
+    const char* h = getenv("HOME");
+    return std::string(h ? h : "/tmp") + "/.local/state/hyprplane";
+}
+static std::string layoutPath(const std::string& name) {
+    std::string safe;
+    for (const char c : name)
+        safe += (std::isalnum((unsigned char)c) || c == '-' || c == '_') ? c : '_';
+    if (safe.empty())
+        safe = "default";
+    return layoutDir() + "/" + safe + ".layout";
+}
+
+// Canvas windows in m_windows (creation) order — stable for occurrence-based identity matching.
+static std::vector<PHLWINDOW> canvasWindowsInOrder(const std::unordered_set<WORKSPACEID>& wss) {
+    std::vector<PHLWINDOW> v;
+    for (const auto& w : g_pCompositor->m_windows)
+        if (w && w->m_isMapped && w->m_workspace && wss.contains(w->m_workspace->m_id))
+            v.push_back(w);
+    return v;
+}
+
+void CCanvasMode::saveLayout(const std::string& name) {
+    if (m_canvasWorkspaces.empty())
+        return;
+    std::error_code ec;
+    fs::create_directories(layoutDir(), ec);
+    std::ofstream f(layoutPath(name), std::ios::trunc);
+    if (!f)
+        return;
+
+    // Format: count, then per window 4 lines: class, title, occurrence, "x y w h".
+    const auto wins = canvasWindowsInOrder(m_canvasWorkspaces);
+    f << wins.size() << "\n";
+    std::unordered_map<std::string, int> occ;
+    for (const auto& w : wins) {
+        const std::string cls = w->m_class, title = w->m_title;
+        const int         o   = occ[cls + "\x1f" + title]++;
+        const Vector2D    p = w->m_realPosition->goal(), s = w->m_realSize->goal();
+        f << cls << "\n" << title << "\n" << o << "\n" << (int)p.x << " " << (int)p.y << " " << (int)s.x << " " << (int)s.y << "\n";
+    }
+}
+
+void CCanvasMode::loadLayout(const std::string& name) {
+    if (m_canvasWorkspaces.empty())
+        return;
+    std::ifstream f(layoutPath(name));
+    if (!f)
+        return;
+    std::string head;
+    if (!std::getline(f, head))
+        return;
+    int n = 0;
+    try {
+        n = std::stoi(head);
+    } catch (...) { return; }
+
+    const auto wins = canvasWindowsInOrder(m_canvasWorkspaces);
+    for (int i = 0; i < n; ++i) {
+        std::string cls, title, occs, geom;
+        if (!std::getline(f, cls) || !std::getline(f, title) || !std::getline(f, occs) || !std::getline(f, geom))
+            break;
+        int occ = 0;
+        try {
+            occ = std::stoi(occs);
+        } catch (...) {}
+        double             x = 0, y = 0, wd = 0, ht = 0;
+        std::istringstream(geom) >> x >> y >> wd >> ht;
+        if (wd < 1 || ht < 1)
+            continue;
+
+        // Match the occ-th currently-open canvas window with this class+title.
+        int       seen = 0;
+        PHLWINDOW match;
+        for (const auto& w : wins)
+            if (w->m_class == cls && w->m_title == title) {
+                if (seen++ == occ) {
+                    match = w;
+                    break;
+                }
+            }
+        if (match)
+            if (const auto t = match->layoutTarget())
+                g_layoutManager->setTargetGeom(CBox{Vector2D(x, y), Vector2D(wd, ht)}, t);
+    }
+}
+
+void CCanvasMode::gather() {
+    if (m_canvasWorkspaces.empty())
+        return;
+    const auto mon = g_pCompositor->getMonitorFromCursor();
+    if (!mon || !isCanvas(mon->m_activeWorkspace))
+        return;
+    const auto wsid = mon->m_activeWorkspace->m_id;
+
+    // The focused monitor's canvas windows, largest first (placed first → end up behind).
+    std::vector<PHLWINDOW> wins;
+    for (const auto& w : orderedWindows())
+        if (w->m_workspace && w->m_workspace->m_id == wsid)
+            wins.push_back(w);
+    if (wins.empty())
+        return;
+
+    // Centred diagonal cascade so every window lands back in the current view.
+    const Vector2D centre = mon->middle();
+    const double   step   = 48.0;
+    const double   off0   = (wins.size() - 1) / 2.0;
+    for (size_t i = 0; i < wins.size(); ++i) {
+        const auto t = wins[i]->layoutTarget();
+        if (!t)
+            continue;
+        const Vector2D size = wins[i]->m_realSize->goal();
+        const Vector2D pos  = centre - size / 2.0 + Vector2D(((double)i - off0) * step, ((double)i - off0) * step);
+        g_layoutManager->setTargetGeom(CBox{pos, size}, t);
+        if (wins[i]->m_realPosition)
+            wins[i]->m_realPosition->value() = wins[i]->m_realPosition->goal();
+    }
 }

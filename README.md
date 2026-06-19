@@ -81,6 +81,15 @@ Optional tunables go in a `plugin { hyprplane { … } }` block (see [`canvas.con
 | `fade_speed` | `0.18` | minimap fade easing (higher = snappier) |
 | `grab_button` | `2` | pan trigger: `0` middle, `1` ctrl+left, `2` both |
 | `jump_order` | `0` | `SUPER`+number order: `0` largest, `1` left-to-right, `2` oldest |
+| `spawn_center` | `1` | new windows open at the view centre (best-effort); `0` = natural spot |
+
+### Window-management dispatchers (canvas mode only)
+
+| Dispatcher | Action |
+| --- | --- |
+| `canvas:gather` | pull the focused monitor's windows back into the current view |
+| `canvas:savelayout <name>` | save the current arrangement to `$XDG_STATE_HOME/hyprplane/<name>.layout` |
+| `canvas:loadlayout <name>` | restore a saved arrangement (matches windows by class + title) |
 
 ## How it works
 

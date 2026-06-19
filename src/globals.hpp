@@ -31,6 +31,7 @@ namespace cfg {
     inline float minimapSize() { return (float)cfgFloat("plugin:hyprplane:minimap_size", 0.28F); }
     inline int   minimapPos()  { return (int)cfgInt("plugin:hyprplane:minimap_position", 0); } // 0 BR,1 BL,2 TR,3 TL
     inline float fadeSpeed()   { return (float)cfgFloat("plugin:hyprplane:fade_speed", 0.18F); }
-    inline int   grabButton()  { return (int)cfgInt("plugin:hyprplane:grab_button", 2); }       // 0 mid,1 ctrl-left,2 both
-    inline int   jumpOrder()   { return (int)cfgInt("plugin:hyprplane:jump_order", 0); }         // 0 size,1 spatial,2 age
+    inline int   grabButton()   { return (int)cfgInt("plugin:hyprplane:grab_button", 2); }       // 0 mid,1 ctrl-left,2 both
+    inline int   jumpOrder()    { return (int)cfgInt("plugin:hyprplane:jump_order", 0); }         // 0 size,1 spatial,2 age
+    inline bool  spawnCenter()  { return cfgInt("plugin:hyprplane:spawn_center", 1) != 0; }       // new windows at view centre
 }
