@@ -29,10 +29,20 @@ static CHyprSignalListener g_openListener;
 static CHyprSignalListener g_renderListener;
 
 // Minimap fade level (0..1), eased toward 1 while grab-panning and back to 0 when idle.
-static float           g_minimapAlpha    = 0.0F;
-static constexpr float MINIMAP_FADE_RATE = 0.18F;  // per-frame easing toward target
+static float           g_minimapAlpha     = 0.0F;
 static constexpr float MINIMAP_FADE_FLOOR = 0.004F; // below this, treat as fully hidden
-static constexpr int   ACCENT_TTL_SECS   = 3;      // re-read the theme accent at most this often
+static constexpr int   ACCENT_TTL_SECS    = 3;      // re-read the theme accent at most this often
+
+// Register tunables under `plugin { hyprplane { … } }`. Defaults MUST match the cfg:: accessors
+// in globals.hpp. Called once in pluginInit, then reloadConfig() applies the user's values.
+static void registerConfig() {
+    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprplane:minimap", Hyprlang::INT{1});
+    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprplane:minimap_size", Hyprlang::FLOAT{0.28F});
+    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprplane:minimap_position", Hyprlang::INT{0});
+    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprplane:fade_speed", Hyprlang::FLOAT{0.18F});
+    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprplane:grab_button", Hyprlang::INT{2});
+    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprplane:jump_order", Hyprlang::INT{0});
+}
 
 // System theme accent = first colour of the active-border gradient. Read via hyprctl
 // (the config-pointer route returns garbage for complex gradient values) and parse the
@@ -123,6 +133,8 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO pluginInit(HANDLE handle) {
     PHANDLE   = handle;
     g_canvas  = makeUnique<CCanvasMode>();
 
+    registerConfig(); // tunables under plugin { hyprplane { … } }
+
     // --- the master switch -------------------------------------------------
     HyprlandAPI::addDispatcherV2(PHANDLE, "canvas:toggle", [](std::string) -> SDispatchResult {
         g_canvas->toggleAllMonitors();
@@ -173,7 +185,9 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO pluginInit(HANDLE handle) {
             if (!g_canvas->anyActive())
                 return; // inert outside canvas mode
 
-            const bool panBtn = e.button == BTN_MIDDLE_ID || (e.button == BTN_LEFT_ID && ctrlHeld());
+            const int  gb     = cfg::grabButton(); // 0 middle, 1 ctrl+left, 2 both
+            const bool panBtn = ((gb == 0 || gb == 2) && e.button == BTN_MIDDLE_ID) ||
+                                ((gb == 1 || gb == 2) && e.button == BTN_LEFT_ID && ctrlHeld());
             if (e.state == WL_POINTER_BUTTON_STATE_PRESSED) {
                 if (!panBtn)
                     return;
@@ -205,12 +219,12 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO pluginInit(HANDLE handle) {
     g_renderListener = Event::bus()->m_events.render.stage.listen([](eRenderStage stage) {
         if (stage != RENDER_POST_WINDOWS) // add our pass element while the pass is being built
             return;
-        if (!g_canvas || !g_canvas->anyActive()) {
+        if (!g_canvas || !g_canvas->anyActive() || !cfg::minimap()) {
             g_minimapAlpha = 0.0F;
             return;
         }
         // ease toward visible while grab-panning, toward hidden when idle
-        g_minimapAlpha += ((g_grabbing ? 1.0F : 0.0F) - g_minimapAlpha) * MINIMAP_FADE_RATE;
+        g_minimapAlpha += ((g_grabbing ? 1.0F : 0.0F) - g_minimapAlpha) * cfg::fadeSpeed();
         if (g_minimapAlpha <= MINIMAP_FADE_FLOOR) {
             g_minimapAlpha = 0.0F;
             return;
@@ -237,6 +251,8 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO pluginInit(HANDLE handle) {
     }
     if (g_sendScaleHook)
         g_sendScaleHook->hook();
+
+    HyprlandAPI::reloadConfig(); // apply the user's plugin { hyprplane { … } } values
 
     HyprlandAPI::addNotification(PHANDLE, "[hyprplane] loaded — toggle: SUPER+grave, middle/Ctrl-drag to pan",
                                   CHyprColor{0.2F, 1.0F, 0.4F, 1.0F}, 4000);

@@ -3,6 +3,7 @@
 // (a method may be defined in any translation unit) plus the icon cache it relies on.
 
 #include "CanvasMode.hpp"
+#include "globals.hpp"
 
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/desktop/Workspace.hpp>
@@ -29,7 +30,6 @@ namespace fs = std::filesystem;
 namespace {
     constexpr uint32_t DRM_FMT_ARGB8888 = 0x34325241; // cairo ARGB32 in memory == DRM_FORMAT_ARGB8888
 
-    constexpr double PANEL_W_FRAC  = 0.28; // panel width  as a fraction of the monitor
     constexpr double PANEL_H_FRAC  = 0.34; // panel height cap as a fraction of the monitor
     constexpr double PANEL_W_MAX   = 360.0;
     constexpr double MARGIN        = 24.0; // gap from the monitor's bottom-right corner
@@ -238,9 +238,9 @@ void CCanvasMode::renderMinimap(const PHLMONITOR& mon, float alpha, const CHyprC
         bbMax.y = std::max(bbMax.y, p.y + s.y);
     };
 
-    for (const auto& w : g_pCompositor->m_windows) {
-        if (!w || !w->m_isMapped || !w->m_workspace || !m_canvasWorkspaces.contains(w->m_workspace->m_id))
-            continue;
+    // orderedWindows() already applies the jump_order config, so badge numbers here match
+    // the SUPER+number jump exactly. No local re-sort.
+    for (const auto& w : orderedWindows()) {
         const Vector2D p = w->m_realPosition->value(), s = w->m_realSize->value();
         wins.push_back({p, s, w->m_class.empty() ? w->m_initialClass : w->m_class});
         grow(p, s);
@@ -255,24 +255,23 @@ void CCanvasMode::renderMinimap(const PHLMONITOR& mon, float alpha, const CHyprC
     if (bb.x < 1.0 || bb.y < 1.0)
         return;
 
-    // Largest-area first so the labels match the SUPER+number (canvas:jump) ordering.
-    std::sort(wins.begin(), wins.end(),
-              [](const SRect& a, const SRect& b) { return a.size.x * a.size.y > b.size.x * b.size.y; });
-
     // Theme: accent (active border) for windows/viewport; a number colour that contrasts it.
     const double     lum    = 0.3 * accent.r + 0.6 * accent.g + 0.1 * accent.b;
     const CHyprColor numCol = lum > 0.6 ? CHyprColor(0.06, 0.06, 0.08, NUM_A * alpha) : CHyprColor(0.96, 0.97, 1.0, NUM_A * alpha);
     const CHyprColor winCol(accent.r, accent.g, accent.b, WINDOW_A * alpha);
     const CHyprColor vpCol(accent.r, accent.g, accent.b, VIEWPORT_A * alpha);
 
-    // Panel anchored bottom-right (monitor-local logical coords), sized to the canvas aspect.
-    double pw = std::min(PANEL_W_MAX, mon->m_size.x * PANEL_W_FRAC);
+    // Panel sized to the canvas aspect, placed in the configured corner (monitor-local coords).
+    double pw = std::min(PANEL_W_MAX, mon->m_size.x * std::clamp((double)cfg::minimapSize(), 0.1, 0.6));
     double ph = pw * (bb.y / bb.x);
     if (ph > mon->m_size.y * PANEL_H_FRAC) {
         ph = mon->m_size.y * PANEL_H_FRAC;
         pw = ph * (bb.x / bb.y);
     }
-    const CBox panel(mon->m_size.x - pw - MARGIN, mon->m_size.y - ph - MARGIN, pw, ph);
+    const int    posn = cfg::minimapPos();                                  // 0 BR, 1 BL, 2 TR, 3 TL
+    const double px   = (posn == 1 || posn == 3) ? MARGIN : mon->m_size.x - pw - MARGIN;
+    const double py   = (posn == 2 || posn == 3) ? MARGIN : mon->m_size.y - ph - MARGIN;
+    const CBox   panel(px, py, pw, ph);
     addRect(panel, CHyprColor(0.0, 0.0, 0.0, PANEL_BG_A * alpha), PANEL_ROUND);
 
     const double   sc      = std::min((pw - 2 * PAD) / bb.x, (ph - 2 * PAD) / bb.y);

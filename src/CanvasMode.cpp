@@ -1,4 +1,5 @@
 #include "CanvasMode.hpp"
+#include "globals.hpp"
 
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/desktop/Workspace.hpp>
@@ -170,24 +171,38 @@ void CCanvasMode::leave(const PHLWORKSPACE& ws) {
         g_layoutManager->recalculateMonitor(MON);
 }
 
+std::vector<PHLWINDOW> CCanvasMode::orderedWindows() const {
+    std::vector<PHLWINDOW> v;
+    for (const auto& w : g_pCompositor->m_windows)
+        if (w && w->m_isMapped && w->m_workspace && m_canvasWorkspaces.contains(w->m_workspace->m_id))
+            v.push_back(w); // m_windows is creation order → this is the "age" order as-is
+
+    switch (cfg::jumpOrder()) {
+        case 1: // spatial: left-to-right, then top-to-bottom
+            std::sort(v.begin(), v.end(), [](const PHLWINDOW& a, const PHLWINDOW& b) {
+                const auto pa = a->m_realPosition->goal(), pb = b->m_realPosition->goal();
+                return pa.x != pb.x ? pa.x < pb.x : pa.y < pb.y;
+            });
+            break;
+        case 2: // age: oldest first (m_windows order) — leave as collected
+            break;
+        default: // 0 = largest-area first
+            std::sort(v.begin(), v.end(), [](const PHLWINDOW& a, const PHLWINDOW& b) {
+                const auto sa = a->m_realSize->goal(), sb = b->m_realSize->goal();
+                return sa.x * sa.y > sb.x * sb.y;
+            });
+            break;
+    }
+    return v;
+}
+
 void CCanvasMode::jumpToWindow(int n) {
     if (m_canvasWorkspaces.empty() || n < 1)
         return;
 
-    // All mapped windows living on a canvas workspace (across every monitor).
-    std::vector<PHLWINDOW> wins;
-    for (const auto& w : g_pCompositor->m_windows)
-        if (w && w->m_isMapped && w->m_workspace && m_canvasWorkspaces.contains(w->m_workspace->m_id))
-            wins.push_back(w);
+    const auto wins = orderedWindows();
     if (n > (int)wins.size())
         return;
-
-    // Largest-area first, so SUPER+1 is the biggest window, descending.
-    std::sort(wins.begin(), wins.end(), [](const PHLWINDOW& a, const PHLWINDOW& b) {
-        const auto sa = a->m_realSize->goal();
-        const auto sb = b->m_realSize->goal();
-        return sa.x * sa.y > sb.x * sb.y;
-    });
 
     const auto w   = wins[n - 1];
     const auto mon = w->m_monitor.lock();

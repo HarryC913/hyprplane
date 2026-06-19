@@ -69,6 +69,19 @@ hyprctl plugin load "$PWD/build/hyprplane.so"
 | Toggle full-display overview | `SUPER`+`Ctrl`+`O` (runs `scripts/canvas-overview`) |
 | Jump to Nᵗʰ-largest window | `SUPER`+`1` through `0` (canvas mode only) |
 
+## Configuration
+
+Optional tunables go in a `plugin { hyprplane { … } }` block (see [`canvas.conf.example`](canvas.conf.example)). Defaults shown; change and `hyprctl reload` to apply:
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `minimap` | `1` | `0` disables the grab-pan minimap |
+| `minimap_size` | `0.28` | panel width as a fraction of the monitor (0.1–0.6) |
+| `minimap_position` | `0` | `0` bottom-right, `1` bottom-left, `2` top-right, `3` top-left |
+| `fade_speed` | `0.18` | minimap fade easing (higher = snappier) |
+| `grab_button` | `2` | pan trigger: `0` middle, `1` ctrl+left, `2` both |
+| `jump_order` | `0` | `SUPER`+number order: `0` largest, `1` left-to-right, `2` oldest |
+
 ## How it works
 
 Canvas windows are set floating so the tiling engine stops repositioning them; panning then moves their real positions (so render *and* input stay in sync). Toggling off restores the saved floating-state and re-tiles. Design notes, dead-ends, and Hyprland-internals gotchas are documented in [FINDINGS.md](FINDINGS.md).

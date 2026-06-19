@@ -48,7 +48,11 @@ class CCanvasMode {
     // overview's lowered monitor scale doesn't make apps (Steam/GTK/Qt) reflow their UI.
     float appScale() const { return m_appScale; }
 
-    // Focus + centre the Nth canvas window (1-based), ordered largest-area first across all
+    // All mapped windows on canvas workspaces, ordered per the `jump_order` config (size /
+    // spatial / age). Shared by the SUPER+number jump and the minimap so their numbering matches.
+    std::vector<PHLWINDOW> orderedWindows() const;
+
+    // Focus + centre the Nth canvas window (1-based, in orderedWindows() order) across all
     // canvas workspaces. Drives the SUPER+number window-switcher (via the canvas:jump dispatcher).
     void jumpToWindow(int n);
 

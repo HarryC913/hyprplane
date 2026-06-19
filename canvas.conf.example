@@ -49,3 +49,15 @@ bind = SUPER, code:16, canvas:jump, 7
 bind = SUPER, code:17, canvas:jump, 8
 bind = SUPER, code:18, canvas:jump, 9
 bind = SUPER, code:19, canvas:jump, 10
+
+# Tunables (all optional — these are the defaults). Change + `hyprctl reload` to apply.
+plugin {
+    hyprplane {
+        minimap = 1            # 0 = disable the grab-pan minimap
+        minimap_size = 0.28    # panel width as a fraction of the monitor (0.1–0.6)
+        minimap_position = 0   # 0 bottom-right, 1 bottom-left, 2 top-right, 3 top-left
+        fade_speed = 0.18      # minimap fade easing (higher = snappier)
+        grab_button = 2        # pan trigger: 0 middle, 1 ctrl+left, 2 both
+        jump_order = 0         # SUPER+number order: 0 largest, 1 left-to-right, 2 oldest
+    }
+}
